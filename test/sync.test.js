@@ -7,7 +7,7 @@ import { runSync } from '../src/sync.js';
 
 const HEADER = 'A,B,C,D,E,F,G,H';
 
-test('dry run makes no HTTP calls', async () => {
+test('dry run loads Takealot SKUs but does not PATCH stock', async () => {
   const workspace = await mkdtemp(join(tmpdir(), 'takealot-sync-'));
   try {
     const csvPath = join(workspace, 'shopify.csv');
@@ -20,19 +20,26 @@ test('dry run makes no HTTP calls', async () => {
       'utf8',
     );
 
-    let fetchCalls = 0;
+    const calls = [];
     const result = await runSync({
       csvPath,
       dryRun: true,
+      apiKey: 'test-key',
+      baseUrl: 'https://example.test/v1',
       reportDir: join(workspace, 'reports'),
-      fetchImpl: async () => {
-        fetchCalls += 1;
-        throw new Error('Should not call fetch in dry-run.');
+      fetchImpl: async (url, options) => {
+        calls.push({ url, options });
+        return response(200, {
+          items: [{ sku: 'ABC-1' }],
+          count: 1,
+          limit: 1000,
+        });
       },
       logger: silentLogger(),
     });
 
-    assert.equal(fetchCalls, 0);
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].options.method, 'GET');
     assert.equal(result.prepared, 1);
     assert.equal(result.failures.length, 0);
   } finally {
@@ -62,16 +69,27 @@ test('successful rows PATCH Takealot by SKU', async () => {
       reportDir: join(workspace, 'reports'),
       fetchImpl: async (url, options) => {
         calls.push({ url, options });
+        if (options.method === 'GET') {
+          return response(200, {
+            items: [{ sku: 'ABC-1' }],
+            count: 1,
+            limit: 1000,
+          });
+        }
         return response(200, { ok: true });
       },
       logger: silentLogger(),
     });
 
+    const getCall = calls.find((call) => call.options.method === 'GET');
+    const patchCall = calls.find((call) => call.options.method === 'PATCH');
+
     assert.equal(result.successes, 1);
-    assert.equal(calls[0].url, 'https://example.test/v1/offers/by_sku/ABC-1');
-    assert.equal(calls[0].options.method, 'PATCH');
-    assert.equal(calls[0].options.headers['X-API-Key'], 'test-key');
-    assert.deepEqual(JSON.parse(calls[0].options.body), {
+    assert.equal(getCall.url, 'https://example.test/v1/offers?fields=sku&limit=1000&include_count=true');
+    assert.equal(patchCall.url, 'https://example.test/v1/offers/by_sku/ABC-1');
+    assert.equal(patchCall.options.method, 'PATCH');
+    assert.equal(patchCall.options.headers['X-API-Key'], 'test-key');
+    assert.deepEqual(JSON.parse(patchCall.options.body), {
       sku: 'ABC-1',
       seller_warehouse_stock: [
         {
@@ -104,7 +122,16 @@ test('failed rows continue and produce a report', async () => {
       apiKey: 'test-key',
       baseUrl: 'https://example.test/v1',
       reportDir: join(workspace, 'reports'),
-      fetchImpl: async () => response(200, { ok: true }),
+      fetchImpl: async (url, options) => {
+        if (options.method === 'GET') {
+          return response(200, {
+            items: [{ sku: 'ABC-1' }],
+            count: 1,
+            limit: 1000,
+          });
+        }
+        return response(200, { ok: true });
+      },
       logger: silentLogger(),
     });
 
@@ -138,7 +165,14 @@ test('transient API failures are retried', async () => {
       apiKey: 'test-key',
       baseUrl: 'https://example.test/v1',
       reportDir: join(workspace, 'reports'),
-      fetchImpl: async () => {
+      fetchImpl: async (url, options) => {
+        if (options.method === 'GET') {
+          return response(200, {
+            items: [{ sku: 'ABC-1' }],
+            count: 1,
+            limit: 1000,
+          });
+        }
         attempts += 1;
         return attempts === 1 ? response(500, { error: 'temporary' }) : response(200, { ok: true });
       },
@@ -147,6 +181,103 @@ test('transient API failures are retried', async () => {
 
     assert.equal(attempts, 2);
     assert.equal(result.successes, 1);
+  } finally {
+    await rm(workspace, { recursive: true, force: true });
+  }
+});
+
+test('only CSV SKUs loaded in Takealot are patched', async () => {
+  const workspace = await mkdtemp(join(tmpdir(), 'takealot-sync-'));
+  try {
+    const csvPath = join(workspace, 'shopify.csv');
+    await writeFile(
+      csvPath,
+      [
+        HEADER,
+        'ABC-,ignored,1,ignored,ignored,ignored,ignored,7',
+        'MISSING-,ignored,1,ignored,ignored,ignored,ignored,7',
+      ].join('\n'),
+      'utf8',
+    );
+
+    const calls = [];
+    const result = await runSync({
+      csvPath,
+      apiKey: 'test-key',
+      baseUrl: 'https://example.test/v1',
+      reportDir: join(workspace, 'reports'),
+      fetchImpl: async (url, options) => {
+        calls.push({ url, options });
+        if (options.method === 'GET') {
+          return response(200, {
+            items: [{ sku: 'ABC-1' }],
+            count: 1,
+            limit: 1000,
+          });
+        }
+        return response(200, { ok: true });
+      },
+      logger: silentLogger(),
+    });
+
+    const patchCalls = calls.filter((call) => call.options.method === 'PATCH');
+    assert.equal(result.prepared, 1);
+    assert.equal(result.skippedMissingSkuCount, 1);
+    assert.equal(patchCalls.length, 1);
+    assert.equal(patchCalls[0].url, 'https://example.test/v1/offers/by_sku/ABC-1');
+  } finally {
+    await rm(workspace, { recursive: true, force: true });
+  }
+});
+
+test('offer SKU loading follows continuation tokens', async () => {
+  const workspace = await mkdtemp(join(tmpdir(), 'takealot-sync-'));
+  try {
+    const csvPath = join(workspace, 'shopify.csv');
+    await writeFile(
+      csvPath,
+      [
+        HEADER,
+        'ABC-,ignored,1,ignored,ignored,ignored,ignored,7',
+        'NEXT-,ignored,1,ignored,ignored,ignored,ignored,7',
+      ].join('\n'),
+      'utf8',
+    );
+
+    const calls = [];
+    const result = await runSync({
+      csvPath,
+      apiKey: 'test-key',
+      baseUrl: 'https://example.test/v1',
+      reportDir: join(workspace, 'reports'),
+      fetchImpl: async (url, options) => {
+        calls.push({ url, options });
+        if (options.method === 'GET' && url.includes('continuation_token=page-2')) {
+          return response(200, {
+            items: [{ sku: 'NEXT-1' }],
+            limit: 1000,
+          });
+        }
+        if (options.method === 'GET') {
+          return response(200, {
+            items: [{ sku: 'ABC-1' }],
+            count: 2,
+            limit: 1,
+            continuation_token: 'page-2',
+          });
+        }
+        return response(200, { ok: true });
+      },
+      logger: silentLogger(),
+    });
+
+    const getCalls = calls.filter((call) => call.options.method === 'GET');
+    const patchCalls = calls.filter((call) => call.options.method === 'PATCH');
+
+    assert.equal(result.takealotSkuCount, 2);
+    assert.equal(result.successes, 2);
+    assert.equal(getCalls.length, 2);
+    assert.equal(patchCalls.length, 2);
   } finally {
     await rm(workspace, { recursive: true, force: true });
   }

@@ -8,7 +8,7 @@ Small Node.js CLI for reading Froggie CSV stock exports and PATCHing Takealot of
 TAKEALOT_API_KEY="your-api-key" npm run sync -- --csv "C:\Users\USER-PC\Downloads\Shopify.csv"
 ```
 
-Dry-run mode prints the planned payloads and does not call Takealot:
+Dry-run mode loads Takealot offer SKUs, filters the CSV rows, and prints the planned payloads without PATCHing stock:
 
 ```bash
 npm run sync -- --csv "C:\Users\USER-PC\Downloads\Shopify.csv" --dry-run
@@ -16,7 +16,7 @@ npm run sync -- --csv "C:\Users\USER-PC\Downloads\Shopify.csv" --dry-run
 
 ## Environment
 
-- `TAKEALOT_API_KEY`: required unless `--dry-run` is used.
+- `TAKEALOT_API_KEY`: required.
 - `TAKEALOT_BASE_URL`: defaults to `https://marketplace-api.takealot.com/v1`.
 - `TAKEALOT_SELLER_WAREHOUSE_ID`: defaults to `60143`.
 - `TAKEALOT_CONCURRENCY`: defaults to `3`.
@@ -32,3 +32,5 @@ The reader uses fixed 1-based column positions, not header names:
 SKU is `trim(Handle) + trim(Option1 Value)`, except blank or `None` option values are skipped.
 
 Quantity is read from column `8`, then reduced by `1` as a stock buffer. The quantity never goes below `0`.
+
+Before sending updates, the CLI loads all existing Takealot offers with `GET /offers?fields=sku&limit=1000&include_count=true`, follows `continuation_token` pages, and stores the returned SKUs in a `Set`. CSV rows whose SKUs are not already present in Takealot are skipped.

@@ -2,7 +2,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { basename, join, resolve } from 'node:path';
 import { parseCsv } from './csv.js';
 import { rowsToUpdates } from './transform.js';
-import { patchOfferBySku } from './takealot.js';
+import { fetchOfferSkus, patchOfferBySku } from './takealot.js';
 
 export async function runSync({
   csvPath,
@@ -19,8 +19,8 @@ export async function runSync({
     throw new Error('Missing required --csv path.');
   }
 
-  if (!dryRun && !apiKey) {
-    throw new Error('TAKEALOT_API_KEY is required unless --dry-run is used.');
+  if (!apiKey) {
+    throw new Error('TAKEALOT_API_KEY is required.');
   }
 
   const csvText = await readFile(csvPath, 'utf8');
@@ -30,15 +30,33 @@ export async function runSync({
   logger.log(`Loaded ${records.length} CSV row(s) from ${csvPath}.`);
   logger.log(`Prepared ${updates.length} Takealot stock update(s).`);
 
+  logger.log('Loading existing Takealot offer SKUs...');
+  const { skus: takealotSkus, expectedCount } = await fetchOfferSkus({
+    baseUrl,
+    apiKey,
+    fetchImpl,
+  });
+
+  logger.log(
+    expectedCount === null
+      ? `Loaded ${takealotSkus.size} Takealot offer SKU(s).`
+      : `Loaded ${takealotSkus.size} Takealot offer SKU(s) from ${expectedCount} offer(s).`,
+  );
+
+  const filteredUpdates = updates.filter((update) => takealotSkus.has(update.sku));
+  const skippedMissingSkuCount = updates.length - filteredUpdates.length;
+  logger.log(`Filtered to ${filteredUpdates.length} update(s) with SKUs already loaded in Takealot.`);
+  logger.log(`Skipped ${skippedMissingSkuCount} CSV SKU(s) that are not currently in Takealot.`);
+
   let apiFailures = [];
   let successes = 0;
 
   if (dryRun) {
-    for (const update of updates) {
+    for (const update of filteredUpdates) {
       logger.log(JSON.stringify(update.payload));
     }
   } else {
-    const results = await mapWithConcurrency(updates, concurrency, async (update) => {
+    const results = await mapWithConcurrency(filteredUpdates, concurrency, async (update) => {
       const result = await patchOfferBySku({
         baseUrl,
         apiKey,
@@ -79,13 +97,15 @@ export async function runSync({
 
   logger.log(
     dryRun
-      ? `Dry run complete: ${updates.length} payload(s), ${failures.length} failure(s).`
+      ? `Dry run complete: ${filteredUpdates.length} payload(s), ${skippedMissingSkuCount} skipped, ${failures.length} failure(s).`
       : `Sync complete: ${successes} succeeded, ${failures.length} failed.`,
   );
 
   return {
     records: records.length,
-    prepared: updates.length,
+    prepared: filteredUpdates.length,
+    skippedMissingSkuCount,
+    takealotSkuCount: takealotSkus.size,
     successes,
     failures,
     reportPath,
