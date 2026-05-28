@@ -1,6 +1,6 @@
 import { REQUIRED_FIELDS } from './csv.js';
 
-const STOCK_COLUMNS = ['23 Harden Avenue', 'Ferndale', 'Cape Town'];
+const STOCK_COLUMN = '23 Harden Avenue';
 const SKU_PATTERN = /^[a-zA-Z0-9-_/.]+$/;
 
 export function buildSku(record) {
@@ -24,7 +24,8 @@ export function buildSku(record) {
 }
 
 export function calculateQuantity(record) {
-  return STOCK_COLUMNS.reduce((total, column) => total + parseStockValue(record[column], column), 0);
+  const stockCount = parseStockValue(record[STOCK_COLUMN], STOCK_COLUMN);
+  return Math.max(0, stockCount - 1);
 }
 
 export function createPayload(sku, quantity, sellerWarehouseId) {

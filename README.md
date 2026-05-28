@@ -28,9 +28,7 @@ The reader uses fixed 1-based column positions, not header names:
 - `Handle`: column `1`
 - `Option1 Value`: column `3`
 - `23 Harden Avenue`: column `8`
-- `Ferndale`: column `9`
-- `Cape Town`: column `10`
 
 SKU is `trim(Handle) + trim(Option1 Value)`, except blank or `None` option values are skipped.
 
-Quantity is the sum of `23 Harden Avenue`, `Ferndale`, and `Cape Town`.
+Quantity is read from column `8`, then reduced by `1` as a stock buffer. The quantity never goes below `0`.

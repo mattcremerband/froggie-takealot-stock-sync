@@ -2,8 +2,6 @@ export const FIELD_COLUMNS = {
   Handle: 1,
   'Option1 Value': 3,
   '23 Harden Avenue': 8,
-  Ferndale: 9,
-  'Cape Town': 10,
 };
 
 export const REQUIRED_FIELDS = Object.keys(FIELD_COLUMNS);

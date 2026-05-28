@@ -20,24 +20,22 @@ test('buildSku rejects spaces and invalid characters', () => {
   );
 });
 
-test('calculateQuantity sums stock columns and treats blanks as zero', () => {
-  assert.equal(
-    calculateQuantity({
-      '23 Harden Avenue': '2',
-      Ferndale: '',
-      'Cape Town': '3',
-    }),
-    5,
-  );
+test('calculateQuantity uses column 8 stock with a one-unit buffer', () => {
+  assert.equal(calculateQuantity({ '23 Harden Avenue': '7' }), 6);
+});
+
+test('calculateQuantity never buffers below zero', () => {
+  assert.equal(calculateQuantity({ '23 Harden Avenue': '1' }), 0);
+  assert.equal(calculateQuantity({ '23 Harden Avenue': '' }), 0);
 });
 
 test('calculateQuantity rejects non-numeric and negative values', () => {
   assert.throws(
-    () => calculateQuantity({ '23 Harden Avenue': '-1', Ferndale: '0', 'Cape Town': '0' }),
+    () => calculateQuantity({ '23 Harden Avenue': '-1' }),
     /non-negative integer/,
   );
   assert.throws(
-    () => calculateQuantity({ '23 Harden Avenue': 'one', Ferndale: '0', 'Cape Town': '0' }),
+    () => calculateQuantity({ '23 Harden Avenue': 'one' }),
     /non-negative integer/,
   );
 });
@@ -50,9 +48,7 @@ test('rowsToUpdates reports invalid rows and continues valid rows', () => {
         record: {
           Handle: 'A-',
           'Option1 Value': '1',
-          '23 Harden Avenue': '1',
-          Ferndale: '1',
-          'Cape Town': '1',
+          '23 Harden Avenue': '2',
         },
       },
       {
@@ -61,8 +57,6 @@ test('rowsToUpdates reports invalid rows and continues valid rows', () => {
           Handle: 'Bad SKU',
           'Option1 Value': 'None',
           '23 Harden Avenue': '1',
-          Ferndale: '1',
-          'Cape Town': '1',
         },
       },
     ],
@@ -83,8 +77,6 @@ test('rowsToUpdates ignores duplicate SKUs with same quantity', () => {
           Handle: 'A-',
           'Option1 Value': '1',
           '23 Harden Avenue': '1',
-          Ferndale: '0',
-          'Cape Town': '0',
         },
       },
       {
@@ -93,8 +85,6 @@ test('rowsToUpdates ignores duplicate SKUs with same quantity', () => {
           Handle: 'A-',
           'Option1 Value': '1',
           '23 Harden Avenue': '',
-          Ferndale: '1',
-          'Cape Town': '0',
         },
       },
     ],
@@ -114,8 +104,6 @@ test('rowsToUpdates fails duplicate SKUs with conflicting quantities', () => {
           Handle: 'A-',
           'Option1 Value': '1',
           '23 Harden Avenue': '1',
-          Ferndale: '0',
-          'Cape Town': '0',
         },
       },
       {
@@ -124,8 +112,6 @@ test('rowsToUpdates fails duplicate SKUs with conflicting quantities', () => {
           Handle: 'A-',
           'Option1 Value': '1',
           '23 Harden Avenue': '2',
-          Ferndale: '0',
-          'Cape Town': '0',
         },
       },
     ],
