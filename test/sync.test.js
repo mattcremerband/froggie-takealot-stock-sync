@@ -5,6 +5,8 @@ import { tmpdir } from 'node:os';
 import test from 'node:test';
 import { runSync } from '../src/sync.js';
 
+const HEADER = 'A,B,C,D,E,F,G,H,I,J';
+
 test('dry run makes no HTTP calls', async () => {
   const workspace = await mkdtemp(join(tmpdir(), 'takealot-sync-'));
   try {
@@ -12,8 +14,8 @@ test('dry run makes no HTTP calls', async () => {
     await writeFile(
       csvPath,
       [
-        'Handle,Option1 Value,23 Harden Avenue,Ferndale,Cape Town',
-        'ABC-,1,1,2,3',
+        HEADER,
+        'ABC-,ignored,1,ignored,ignored,ignored,ignored,1,2,3',
       ].join('\n'),
       'utf8',
     );
@@ -45,8 +47,8 @@ test('successful rows PATCH Takealot by SKU', async () => {
     await writeFile(
       csvPath,
       [
-        'Handle,Option1 Value,23 Harden Avenue,Ferndale,Cape Town',
-        'ABC-,1,1,2,3',
+        HEADER,
+        'ABC-,ignored,1,ignored,ignored,ignored,ignored,1,2,3',
       ].join('\n'),
       'utf8',
     );
@@ -90,9 +92,9 @@ test('failed rows continue and produce a report', async () => {
     await writeFile(
       csvPath,
       [
-        'Handle,Option1 Value,23 Harden Avenue,Ferndale,Cape Town',
-        'ABC-,1,1,0,0',
-        'Bad SKU,None,1,0,0',
+        HEADER,
+        'ABC-,ignored,1,ignored,ignored,ignored,ignored,1,0,0',
+        'Bad SKU,ignored,None,ignored,ignored,ignored,ignored,1,0,0',
       ].join('\n'),
       'utf8',
     );
@@ -124,8 +126,8 @@ test('transient API failures are retried', async () => {
     await writeFile(
       csvPath,
       [
-        'Handle,Option1 Value,23 Harden Avenue,Ferndale,Cape Town',
-        'ABC-,1,1,0,0',
+        HEADER,
+        'ABC-,ignored,1,ignored,ignored,ignored,ignored,1,0,0',
       ].join('\n'),
       'utf8',
     );

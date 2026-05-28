@@ -3,7 +3,9 @@ import test from 'node:test';
 import { buildSku, calculateQuantity, rowsToUpdates } from '../src/transform.js';
 
 test('buildSku trims and appends non-None option values', () => {
+  assert.equal(buildSku({ Handle: '12976-100', 'Option1 Value': ' 4 ' }), '12976-100-4');
   assert.equal(buildSku({ Handle: '12976-100-', 'Option1 Value': ' 4 ' }), '12976-100-4');
+  assert.equal(buildSku({ Handle: '12976-100', 'Option1 Value': '-4 ' }), '12976-100-4');
 });
 
 test('buildSku skips blank and None option values', () => {

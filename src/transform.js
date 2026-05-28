@@ -1,4 +1,4 @@
-import { REQUIRED_COLUMNS } from './csv.js';
+import { REQUIRED_FIELDS } from './csv.js';
 
 const STOCK_COLUMNS = ['23 Harden Avenue', 'Ferndale', 'Cape Town'];
 const SKU_PATTERN = /^[a-zA-Z0-9-_/.]+$/;
@@ -12,7 +12,9 @@ export function buildSku(record) {
   }
 
   const shouldAppendOption = optionValue && optionValue.toLowerCase() !== 'none';
-  const sku = shouldAppendOption ? `${handle}-${optionValue}` : handle;
+  const sku = shouldAppendOption
+    ? `${handle.replace(/-+$/, '')}-${optionValue.replace(/^-+/, '')}`
+    : handle;
 
   if (!SKU_PATTERN.test(sku)) {
     throw new Error(`SKU "${sku}" does not match Takealot's allowed pattern.`);
@@ -122,7 +124,7 @@ function parseStockValue(value, column) {
 }
 
 function validateRequiredValues(record) {
-  for (const column of REQUIRED_COLUMNS) {
+  for (const column of REQUIRED_FIELDS) {
     if (!(column in record)) {
       throw new Error(`Row is missing required column "${column}".`);
     }

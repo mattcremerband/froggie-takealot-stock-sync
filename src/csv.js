@@ -1,10 +1,12 @@
-export const REQUIRED_COLUMNS = [
-  'Handle',
-  'Option1 Value',
-  '23 Harden Avenue',
-  'Ferndale',
-  'Cape Town',
-];
+export const FIELD_COLUMNS = {
+  Handle: 1,
+  'Option1 Value': 3,
+  '23 Harden Avenue': 8,
+  Ferndale: 9,
+  'Cape Town': 10,
+};
+
+export const REQUIRED_FIELDS = Object.keys(FIELD_COLUMNS);
 
 export function parseCsv(text) {
   const rows = [];
@@ -57,17 +59,17 @@ export function parseCsv(text) {
     throw new Error('CSV is empty.');
   }
 
-  const headers = nonEmptyRows[0].map((header) => header.trim());
-  const missingColumns = REQUIRED_COLUMNS.filter((column) => !headers.includes(column));
-  if (missingColumns.length > 0) {
-    throw new Error(`CSV is missing required column(s): ${missingColumns.join(', ')}`);
+  const headers = nonEmptyRows[0];
+  const requiredColumnCount = Math.max(...Object.values(FIELD_COLUMNS));
+  if (headers.length < requiredColumnCount) {
+    throw new Error(`CSV must have at least ${requiredColumnCount} columns.`);
   }
 
   const records = nonEmptyRows.slice(1).map((items, index) => {
     const record = {};
-    headers.forEach((header, headerIndex) => {
-      record[header] = items[headerIndex] ?? '';
-    });
+    for (const [field, oneBasedColumn] of Object.entries(FIELD_COLUMNS)) {
+      record[field] = items[oneBasedColumn - 1] ?? '';
+    }
     return {
       rowNumber: index + 2,
       record,

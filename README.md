@@ -23,13 +23,13 @@ npm run sync -- --csv "C:\Users\USER-PC\Downloads\Shopify.csv" --dry-run
 
 ## CSV Rules
 
-Required columns:
+The reader uses fixed 1-based column positions, not header names:
 
-- `Handle`
-- `Option1 Value`
-- `23 Harden Avenue`
-- `Ferndale`
-- `Cape Town`
+- `Handle`: column `1`
+- `Option1 Value`: column `3`
+- `23 Harden Avenue`: column `8`
+- `Ferndale`: column `9`
+- `Cape Town`: column `10`
 
 SKU is `trim(Handle) + trim(Option1 Value)`, except blank or `None` option values are skipped.
 
