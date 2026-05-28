@@ -1,6 +1,6 @@
 {
   "name": "froggie-takealot-stock-sync",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "private": true,
   "type": "module",
   "description": "Sync Froggie CSV stock levels to Takealot offers by SKU.",
